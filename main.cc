@@ -71,25 +71,25 @@ struct tabu_t {
     }
 
     void set(uint16_t node1, uint16_t node2) {
-        normalize(&node1, &node2);
+        assert(node1>node2);
 
         current_max++; // TODO handle overflow
         tabu_map[node1][node2] = current_max;
     }
 
     bool applies(uint16_t node1, uint16_t node2) {
-        normalize(&node1, &node2);
+        assert(node1>node2);
 
         return tabu_map[node1][node2] > current_max - threshold;
     }
 
     void inc(uint16_t node1, uint16_t node2) {
-        normalize(&node1, &node2);
+        assert(node1>node2);
         tabu_map[node1][node2]++;
     }
 
     // TODO inline
-    inline void normalize(uint16_t * node1, uint16_t * node2) {
+    void normalize(uint16_t * node1, uint16_t * node2) {
         if (*node2 > *node1) {
             uint16_t temp;
             temp = *node1;
