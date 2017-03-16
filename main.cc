@@ -67,9 +67,9 @@ struct tabu_t {
     }
     ~tabu_t() {
         for (uint16_t i = 2; i < node_count; ++i) {
-            delete tabu_map[i];
+            delete [] tabu_map[i];
         }
-        delete tabu_map;
+        delete [] tabu_map;
     }
 
     void set(uint16_t node1, uint16_t node2) {

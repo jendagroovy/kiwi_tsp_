@@ -1,6 +1,6 @@
 CC=g++
 CXX=g++
-CXXFLAGS=-std=c++0x
+CXXFLAGS=-std=c++0x -g
 LDFLAGS=-pthread
 
 kiwi: main.o
