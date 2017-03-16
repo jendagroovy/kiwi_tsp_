@@ -66,7 +66,7 @@ struct tabu_t {
         }
     }
     ~tabu_t() {
-        for (uint16_t i = 0; i < node_count; ++i) {
+        for (uint16_t i = 1; i < node_count; ++i) {
             delete tabu_map[i];
         }
         delete tabu_map;
@@ -104,6 +104,32 @@ struct tabu_t {
     uint16_t node_count;
     int current_max;
     int threshold;
+}; 
+
+struct neighbour_t {
+    uint16_t i,j;
+    int price;
+
+    void apply(std::vector<route_t*> &path) {
+        node_t * node_i_pre = path[i-1]->src;
+        node_t * node_i = path[i]->src;
+        node_t * node_i_post = path[i]->dest;
+
+        node_t * node_j_pre = path[j-1]->src;
+        node_t * node_j = path[j]->src;
+        node_t * node_j_post = path[j]->dest;
+
+
+        path[i] = node_j->routes[i][node_i_post->name];
+        path[j-1] = node_j_pre->routes[j-1][node_i->name];
+
+        if (j - i > 1) {
+            path[i-1] = node_i_pre->routes[i-1][node_j->name];
+            path[j] = node_i->routes[j][node_j_post->name];
+        } else {
+            path[j] = node_i->routes[j][node_j->name];
+        }
+    };
 };
 
 
@@ -230,18 +256,20 @@ void depth_search(node_t * start, uint16_t days_total, std::vector<route_t*> &pa
 }
 
 
-void find_best_neighbour(uint16_t days_total, int &current_price, std::vector<route_t*> &path) {
-    uint16_t best_i = 0;
-    uint16_t best_j = 0;
+neighbour_t find_best_neighbour(uint16_t days_total,
+                                int current_price,
+                                std::vector<route_t*> &path,
+                                int best_price,
+                                tabu_t * tabu, tabu_t * freq) {
 
-    int best_neighbour_price = 0;
+    neighbour_t best_neighbour = {0,0,0};
 
     for (uint16_t i = 2; i < days_total - 1; ++i) {
         for (uint16_t j = 1; j < i; ++j) {
             if (i == j) continue;
 
             int neighbour_price = current_price;
-
+            
             route_t* old_i_left = path[i - 1];
             route_t* old_i_right = path[i];
 
@@ -262,27 +290,59 @@ void find_best_neighbour(uint16_t days_total, int &current_price, std::vector<ro
                 continue;
             }
 
-            neighbour_price -= (old_i_left->price + old_i_right->price + old_j_left->price + old_j_right->price);
-            neighbour_price += (new_i_left->price + new_i_right->price + new_j_left->price + new_j_right->price);
+            neighbour_price -= (old_i_right->price + old_j_left->price + old_j_right->price);
+            if (i - j > 1) neighbour_price -= old_i_left->price;
 
-            if (best_i == 0 || best_neighbour_price > neighbour_price) {
-                best_i = i;
-                best_j = j;
-                best_neighbour_price = neighbour_price;
+            neighbour_price += (new_i_right->price + new_j_left->price + new_j_right->price);
+            if (i - j > 1) neighbour_price += new_i_left->price;
+
+            if (tabu->applies(i, j)) {
+                std::cerr << "Neighbour in tabu" << std::endl;
+                if (neighbour_price < best_price) {
+                    std::cerr << "Tabu cancelled - Aspiration criteria met" << std::endl;
+                } else {
+                    continue;
+                }
             }
+
+
+            if (best_neighbour.i == 0 || best_neighbour.price > neighbour_price) {
+                best_neighbour.i = i;
+                best_neighbour.j = j;
+                best_neighbour.price = neighbour_price;
+            }
+
 
         }
     }
 
+    return best_neighbour;
+
 }
 
 
-void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &path, int &total_price) {
-    int best_price = total_price;
+void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &best_path, int &best_price) {
+    std::vector<route_t*> current_path = best_path;
+    int current_price = best_price;
+
     tabu_t tabu(days_total);
     tabu_t freq(days_total);
 
-    find_best_neighbour(days_total, total_price, path);
+    for (int i=0; i<5; ++i) {
+        neighbour_t neighbour = find_best_neighbour(days_total, current_price, current_path, best_price, &tabu, &freq);
+
+        if (neighbour.i != 0) {
+            neighbour.apply(current_path);
+            current_price = neighbour.price;
+            if (neighbour.price < best_price) {
+                best_path = current_path;
+                best_price = current_price;
+                display(current_path, neighbour.price);
+            }
+        }
+
+    }
+
 }
 
 
@@ -299,9 +359,11 @@ int main(int argc, char **argv) {
     int total_price = 0;
 
     depth_search(start, days_total, path, total_price);
+    display(path, total_price);
+
     tabu_search(start, days_total, path, total_price);
 
-    display(path, total_price);
+    //display(path, total_price);
 
     cleanup(nodes);
 
