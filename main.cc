@@ -54,7 +54,7 @@ struct stack_op_t {
 };
 
 struct tabu_t {
-    tabu_t(uint16_t node_count) : node_count(node_count), current_max(40), threshold(40) {
+    tabu_t(uint16_t node_count, int threshold) : node_count(node_count), current_max(threshold), threshold(threshold) {
         tabu_map = new int*[node_count];
         for (uint16_t i = 2; i < node_count; ++i) {
             tabu_map[i] = new int[i - 1];
@@ -300,7 +300,7 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             if (i - j > 1) neighbour_price += new_i_left->price;
 
             if (tabu->applies(i, j)) {
-                std::cerr << "Neighbour in tabu" << std::endl;
+                //std::cerr << "Neighbour in tabu" << std::endl;
                 if (neighbour_price < best_price) {
                     std::cerr << "Tabu cancelled - Aspiration criteria met" << std::endl;
                 } else {
@@ -335,8 +335,8 @@ neighbour_t find_best_neighbour(uint16_t days_total,
         }
     }
 
-    std::cerr << "Returning best neighbour with price " << best_neighbour.price << std::endl;
-    std::cerr << "i=" << best_neighbour.i << " j=" << best_neighbour.j << std::endl;
+    //std::cerr << "Returning best neighbour with price " << best_neighbour.price << std::endl;
+    //std::cerr << "i=" << best_neighbour.i << " j=" << best_neighbour.j << std::endl;
 
     return best_neighbour;
 
@@ -347,10 +347,10 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
     std::vector<route_t*> current_path = best_path;
     int current_price = best_price;
 
-    tabu_t tabu(days_total);
-    tabu_t freq(days_total);
+    tabu_t tabu(days_total, days_total);
+    tabu_t freq(days_total, days_total);
 
-    for (int i=0; i<50; ++i) {
+    for (int i=0; i<4000; ++i) {
         neighbour_t neighbour = find_best_neighbour(days_total, current_price, current_path, best_price, &tabu, &freq);
 
         if (neighbour.i != 0) {
@@ -367,6 +367,8 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
         }
 
     }
+
+    display(best_path, best_price);
 
 }
 
