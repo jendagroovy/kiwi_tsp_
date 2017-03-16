@@ -5,7 +5,6 @@
 #include <vector>
 #include <string>
 #include <set>
-#include <unordered_set>
 #include <stack>
 #include "csv.h"
 
@@ -29,7 +28,6 @@ struct node_t {
     };
 
     std::string name;
-    //std::map<int, std::set<route_t*, route_ptr_compare_t> > routes;
     std::map<uint16_t, std::map<std::string, route_t*> > routes;
 };
 
@@ -56,7 +54,7 @@ struct stack_op_t {
 };
 
 struct tabu_t {
-    tabu_t(uint16_t node_count) : node_count(node_count), current_max(0), threshold(40) {
+    tabu_t(uint16_t node_count) : node_count(node_count), current_max(40), threshold(40) {
         tabu_map = new int*[node_count];
         for (uint16_t i = 2; i < node_count; ++i) {
             tabu_map[i] = new int[i - 1];
@@ -91,7 +89,7 @@ struct tabu_t {
     }
 
     // TODO inline
-    void normalize(uint16_t * node1, uint16_t * node2) {
+    inline void normalize(uint16_t * node1, uint16_t * node2) {
         if (*node2 > *node1) {
             uint16_t temp;
             temp = *node1;
@@ -123,7 +121,7 @@ struct neighbour_t {
         path[i] = node_j->routes[i][node_i_post->name];
         path[j-1] = node_j_pre->routes[j-1][node_i->name];
 
-        if (j - i > 1) {
+        if (i - j > 1) {
             path[i-1] = node_i_pre->routes[i-1][node_j->name];
             path[j] = node_i->routes[j][node_j_post->name];
         } else {
@@ -269,6 +267,11 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             if (i == j) continue;
 
             int neighbour_price = current_price;
+            int test_price=0;
+            for (int t=0; t<days_total; ++t){
+                test_price += path[t]->price;
+            }
+            assert(test_price == neighbour_price);
             
             route_t* old_i_left = path[i - 1];
             route_t* old_i_right = path[i];
@@ -286,7 +289,7 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             route_t* new_j_right = node_j->get_route(i, old_i_right->dest->name);
 
             if (new_i_left == NULL || new_i_right == NULL || new_j_left == NULL || new_j_right == NULL) {
-                std::cerr << "Not a valid neighbour - route missing" << std::endl;
+                // std::cerr << "Not a valid neighbour - route missing" << std::endl;
                 continue;
             }
 
@@ -310,11 +313,30 @@ neighbour_t find_best_neighbour(uint16_t days_total,
                 best_neighbour.i = i;
                 best_neighbour.j = j;
                 best_neighbour.price = neighbour_price;
+
+                int test_price=0;
+                for (int t=0; t<days_total; ++t){
+                    if (t == i) test_price += new_i_right->price;
+                    else if (t == j - 1) test_price += new_j_left->price;
+                    else if (t == j) test_price += new_j_right->price;
+                    else if (t == i - 1) test_price += new_i_left->price;
+                    else test_price += path[t]->price;
+                }
+
+                if (test_price != neighbour_price) {
+                    std::cerr << "Fuck up " << neighbour_price << " vs " << test_price << std::endl;
+                    std::cerr << "i=" << i << " j=" << j << std::endl;
+                    assert(false);
+                }
+
             }
 
 
         }
     }
+
+    std::cerr << "Returning best neighbour with price " << best_neighbour.price << std::endl;
+    std::cerr << "i=" << best_neighbour.i << " j=" << best_neighbour.j << std::endl;
 
     return best_neighbour;
 
@@ -328,17 +350,20 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
     tabu_t tabu(days_total);
     tabu_t freq(days_total);
 
-    for (int i=0; i<5; ++i) {
+    for (int i=0; i<50; ++i) {
         neighbour_t neighbour = find_best_neighbour(days_total, current_price, current_path, best_price, &tabu, &freq);
 
         if (neighbour.i != 0) {
             neighbour.apply(current_path);
+            tabu.set(neighbour.i, neighbour.j);
             current_price = neighbour.price;
             if (neighbour.price < best_price) {
                 best_path = current_path;
                 best_price = current_price;
                 display(current_path, neighbour.price);
             }
+        } else {
+            std::cerr << "No applicable neighbour" << std::endl;
         }
 
     }
