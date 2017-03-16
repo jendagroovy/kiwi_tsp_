@@ -58,7 +58,7 @@ struct stack_op_t {
 struct tabu_t {
     tabu_t(uint16_t node_count) : node_count(node_count), current_max(0), threshold(40) {
         tabu_map = new int*[node_count];
-        for (uint16_t i = 1; i < node_count; ++i) {
+        for (uint16_t i = 2; i < node_count; ++i) {
             tabu_map[i] = new int[i - 1];
             for (uint16_t j = 0; j < i -1; j++) {
                 tabu_map[i][j] = 0;
@@ -66,7 +66,7 @@ struct tabu_t {
         }
     }
     ~tabu_t() {
-        for (uint16_t i = 1; i < node_count; ++i) {
+        for (uint16_t i = 2; i < node_count; ++i) {
             delete tabu_map[i];
         }
         delete tabu_map;
