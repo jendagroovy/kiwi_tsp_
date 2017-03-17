@@ -487,16 +487,18 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
 
         if (iter_since_improvement > 400) {
             bool applied = false;
-            while (!applied) {
+            while (!applied && difftime(time(NULL), started) < 29) {
                 neighbour_t neighbour(0,0,0);
                 freq.get_minimum(&neighbour.i, &neighbour.j);
                 applied = neighbour.try_apply(current_path);
-                if (!applied) std::cout << "not applicable" << std::endl;
+                //if (!applied) std::cout << "not applicable" << std::endl;
             }
-            tabu.clear();
-            freq.clear();
-            iter_since_improvement++;
-            recalculate_price(current_path, &current_price);
+            if (applied) {
+                tabu.clear();
+                freq.clear();
+                iter_since_improvement++;
+                recalculate_price(current_path, &current_price);
+            }
         }
     }
 
