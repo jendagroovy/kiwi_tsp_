@@ -95,7 +95,7 @@ struct semimatrix_t {
         int min = -1;
 
         for (uint16_t i = 2; i < node_count; ++i) {
-            for (uint16_t j = 1; j < node_count; ++j) {
+            for (uint16_t j = 1; j < i - 1; ++j) {
                 if (min == -1 || storage[i][j] < min) {
                     min = storage[i][j];
                     *node1 = i;
@@ -108,7 +108,7 @@ struct semimatrix_t {
 
     void clear() {
         for (uint16_t i = 2; i < node_count; ++i) {
-            for (uint16_t j = 1; j < node_count; ++j) {
+            for (uint16_t j = 0; j < i - 1; ++j) {
                 storage[i][j] = 0;
             }
         }
@@ -418,8 +418,8 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
     std::vector<route_t*> current_path = best_path;
     int current_price = best_price;
 
-    semimatrix_t tabu(days_total, days_total);
-    semimatrix_t freq(days_total, days_total);
+    semimatrix_t tabu(days_total - 1, days_total - 1);
+    semimatrix_t freq(days_total - 1, days_total - 1);
 
     time_t started = time(NULL);
     int iter_since_improvement = 0;
@@ -448,7 +448,7 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
         }
 
         if (iter_since_improvement > 400) {
-            neighbour_t neighbour;
+            neighbour_t neighbour(0,0,0);
             freq.get_minimum(&neighbour.i, &neighbour.j);
             neighbour.apply(current_path);
             tabu.clear();
