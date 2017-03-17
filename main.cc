@@ -89,6 +89,31 @@ struct semimatrix_t {
         return storage[node1][node2];
     }
 
+    void get_minimum(uint16_t * node1, uint16_t * node2) {
+        *node1 = 2;
+        *node2 = 1;
+        int min = -1;
+
+        for (uint16_t i = 2; i < node_count; ++i) {
+            for (uint16_t j = 1; j < node_count; ++j) {
+                if (min == -1 || storage[i][j] < min) {
+                    min = storage[i][j];
+                    *node1 = i;
+                    *node2 = j;
+                }
+            }
+        }
+
+    }
+
+    void clear() {
+        for (uint16_t i = 2; i < node_count; ++i) {
+            for (uint16_t j = 1; j < node_count; ++j) {
+                storage[i][j] = 0;
+            }
+        }
+    }
+
     int **storage;
     uint16_t node_count;
     int current_max;
@@ -379,6 +404,13 @@ neighbour_t find_best_neighbour(uint16_t days_total,
 
 }
 
+void recalculate_price(std::vector<route_t*> path, int * price) {
+    *price = 0;
+    for (auto it = path.cbegin(); it != path.cend(); ++it) {
+        *price += (*it)->price;
+    }
+}
+
 
 void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &best_path,
                  int &best_price, uint16_t minimal_price) {
@@ -390,6 +422,7 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
     semimatrix_t freq(days_total, days_total);
 
     time_t started = time(NULL);
+    int iter_since_improvement = 0;
 
     while (difftime(time(NULL), started) < 29) {
         neighbour_t neighbour = find_best_neighbour(days_total, current_price,
@@ -403,14 +436,25 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
             freq.inc(neighbour.i, neighbour.j);
             current_price = neighbour.price;
             if (neighbour.price < best_price) {
+                iter_since_improvement = 0;
                 best_path = current_path;
                 best_price = current_price;
                 //display(current_path, neighbour.price);
+            } else {
+                iter_since_improvement++;
             }
         } else {
             //std::cerr << "No applicable neighbour" << std::endl;
         }
 
+        if (iter_since_improvement > 400) {
+            neighbour_t neighbour;
+            freq.get_minimum(&neighbour.i, &neighbour.j);
+            neighbour.apply(current_path);
+            tabu.clear();
+            freq.clear();
+            recalculate_price(current_path, &current_price);
+        }
     }
 
     //display(best_path, best_price);
