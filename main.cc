@@ -6,6 +6,8 @@
 #include <string>
 #include <set>
 #include <stack>
+#include <ctime>
+
 #include "csv.h"
 
 struct route_t;
@@ -387,7 +389,9 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
     semimatrix_t tabu(days_total, days_total);
     semimatrix_t freq(days_total, days_total);
 
-    for (int i=0; i<1000; ++i) {
+    time_t started = time(NULL);
+
+    while (difftime(time(NULL), started) < 29) {
         neighbour_t neighbour = find_best_neighbour(days_total, current_price,
                                                     current_path, best_price,
                                                     &tabu, &freq,
