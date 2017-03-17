@@ -53,52 +53,41 @@ struct stack_op_t {
     route_t *route;
 };
 
-struct tabu_t {
-    tabu_t(uint16_t node_count, int threshold) : node_count(node_count), current_max(threshold), threshold(threshold) {
-        tabu_map = new int*[node_count];
+struct semimatrix_t {
+    semimatrix_t(uint16_t node_count, int threshold) : node_count(node_count), current_max(threshold), threshold(threshold) {
+        storage = new int*[node_count];
         for (uint16_t i = 2; i < node_count; ++i) {
-            tabu_map[i] = new int[i - 1];
+            storage[i] = new int[i - 1];
             for (uint16_t j = 0; j < i -1; j++) {
-                tabu_map[i][j] = 0;
+                storage[i][j] = 0;
             }
         }
     }
-    ~tabu_t() {
+    ~semimatrix_t() {
         for (uint16_t i = 2; i < node_count; ++i) {
-            delete [] tabu_map[i];
+            delete [] storage[i];
         }
-        delete [] tabu_map;
+        delete [] storage;
     }
 
     void set(uint16_t node1, uint16_t node2) {
-        normalize(&node1, &node2);
-
         current_max++; // TODO handle overflow
-        tabu_map[node1][node2] = current_max;
+        storage[node1][node2] = current_max;
     }
 
     bool applies(uint16_t node1, uint16_t node2) {
-        normalize(&node1, &node2);
-
-        return tabu_map[node1][node2] > current_max - threshold;
+        return storage[node1][node2] > current_max - threshold;
     }
 
     void inc(uint16_t node1, uint16_t node2) {
-        normalize(&node1, &node2);
-        tabu_map[node1][node2]++;
+        storage[node1][node2]++;
     }
 
-    // TODO inline
-    inline void normalize(uint16_t * node1, uint16_t * node2) {
-        if (*node2 > *node1) {
-            uint16_t temp;
-            temp = *node1;
-            *node1 = *node2;
-            *node2 = temp;
-        }
+    int get(uint16_t node1, uint16_t node2) {
+        return storage[node1][node2];
     }
 
-    int **tabu_map;
+    int **storage;
     uint16_t node_count;
     int current_max;
     int threshold;
@@ -107,6 +96,9 @@ struct tabu_t {
 struct neighbour_t {
     uint16_t i,j;
     int price;
+
+    neighbour_t() : i(0), j(0), price(0) {};
+    neighbour_t(uint16_t i, uint16_t j, int price) : i(i), j(j), price(price) {};
 
     void apply(std::vector<route_t*> &path) {
         node_t * node_i_pre = path[i-1]->src;
@@ -130,12 +122,12 @@ struct neighbour_t {
     };
 };
 
+struct penalized_neighbour_compare_t {
+    bool operator () (const std::pair<int,neighbour_t> &lhs, const std::pair<int,neighbour_t> &rhs) const;
+};
 
 
-
-
-
-uint16_t read_input(std::map<std::string, node_t*> &nodes, node_t* &start) {
+uint16_t read_input(std::map<std::string, node_t*> &nodes, node_t* &start, uint16_t &minimal_price) {
     io::CSVReader<4, io::trim_chars<' '>, io::no_quote_escape<' '> > reader("stdin", std::cin);
     char *start_code = reader.next_line();
 
@@ -159,6 +151,7 @@ uint16_t read_input(std::map<std::string, node_t*> &nodes, node_t* &start) {
         route_t *route = new route_t(nodes[src_code], nodes[dest_code], price);
         nodes[src_code]->routes[day][dest_code] = route;
 
+        if (days_total == 0 || price < minimal_price) minimal_price = price;
         if (day >= days_total) days_total = day + 1;
     }
 
@@ -188,9 +181,16 @@ void display(std::vector<route_t *> path, int total_price) {
     }
 }
 
-void depth_search(node_t * start, uint16_t days_total, std::vector<route_t*> &path, int &total_price) {
+void depth_search(node_t * start, uint16_t days_total,
+                  std::vector<route_t*> &path, int &total_price,
+                  bool full_scan) {
+
     std::set<node_t *> visited_nodes;
     node_t *current_node = start;
+
+    // Full scan variables
+    std::vector<route_t*> best_path;
+    int best_price = -1;
 
     std::stack<stack_op_t> stack;
     uint16_t day = 0;
@@ -227,7 +227,15 @@ void depth_search(node_t * start, uint16_t days_total, std::vector<route_t*> &pa
             stack.push(stack_op_t(BACK, this_route));
 
             if (day == days_total) {
-                break;
+                if (full_scan) {
+                    if (best_price == -1 || best_price > total_price) {
+                        best_path = path;
+                        best_price = total_price;
+                        display(best_path, best_price);
+                    }
+                } else {
+                    break;
+                }
             }
 
             std::set<route_t*, route_ptr_compare_t> ordered_routes;  // Sort routes in set
@@ -248,8 +256,13 @@ void depth_search(node_t * start, uint16_t days_total, std::vector<route_t*> &pa
     } while (!stack.empty());
 
     std::cerr << day << std::endl;
-    if (day != days_total) {
+    if (day != days_total && !(full_scan && best_price != -1)) {
         std::cerr << "Stack depleted" << std::endl;
+    }
+
+    if (full_scan) {
+        path = best_path;
+        total_price = best_price;
     }
 }
 
@@ -258,8 +271,10 @@ neighbour_t find_best_neighbour(uint16_t days_total,
                                 int current_price,
                                 std::vector<route_t*> &path,
                                 int best_price,
-                                tabu_t * tabu, tabu_t * freq) {
+                                semimatrix_t * tabu, semimatrix_t * freq,
+                                uint16_t minimal_price) {
 
+    std::set<std::pair<int, neighbour_t>, penalized_neighbour_compare_t> penalized_neighbours;
     neighbour_t best_neighbour = {0,0,0};
 
     for (uint16_t i = 2; i < days_total - 1; ++i) {
@@ -267,11 +282,13 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             if (i == j) continue;
 
             int neighbour_price = current_price;
+            /* TEST
             int test_price=0;
             for (int t=0; t<days_total; ++t){
                 test_price += path[t]->price;
             }
             assert(test_price == neighbour_price);
+            */
             
             route_t* old_i_left = path[i - 1];
             route_t* old_i_right = path[i];
@@ -299,6 +316,7 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             neighbour_price += (new_i_right->price + new_j_left->price + new_j_right->price);
             if (i - j > 1) neighbour_price += new_i_left->price;
 
+
             if (tabu->applies(i, j)) {
                 //std::cerr << "Neighbour in tabu" << std::endl;
                 if (neighbour_price < best_price) {
@@ -308,12 +326,14 @@ neighbour_t find_best_neighbour(uint16_t days_total,
                 }
             }
 
+            penalized_neighbours.insert(std::pair<int, neighbour_t>(neighbour_price + minimal_price * freq->get(i, j), neighbour_t(i, j, neighbour_price)));
 
             if (best_neighbour.i == 0 || best_neighbour.price > neighbour_price) {
                 best_neighbour.i = i;
                 best_neighbour.j = j;
                 best_neighbour.price = neighbour_price;
 
+                /* TEST
                 int test_price=0;
                 for (int t=0; t<days_total; ++t){
                     if (t == i) test_price += new_i_right->price;
@@ -327,7 +347,7 @@ neighbour_t find_best_neighbour(uint16_t days_total,
                     std::cerr << "Fuck up " << neighbour_price << " vs " << test_price << std::endl;
                     std::cerr << "i=" << i << " j=" << j << std::endl;
                     assert(false);
-                }
+                }*/
 
             }
 
@@ -337,25 +357,46 @@ neighbour_t find_best_neighbour(uint16_t days_total,
 
     //std::cerr << "Returning best neighbour with price " << best_neighbour.price << std::endl;
     //std::cerr << "i=" << best_neighbour.i << " j=" << best_neighbour.j << std::endl;
+    
+    if (best_neighbour.i == 0) {
+        // No applicable neighbours
+        return best_neighbour;
+    }
 
-    return best_neighbour;
+    if (best_neighbour.price < best_price) {
+        return best_neighbour;
+    } else {
+        /*
+        std::cerr << "No interesting neighbour, picking by frequency-penalized price" << std::endl;
+        std::cerr << penalized_neighbours.cbegin()->second.i << std::endl;
+        std::cerr << penalized_neighbours.crbegin()->second.j << std::endl;
+        */
+        return penalized_neighbours.cbegin()->second;
+    }
+
 
 }
 
 
-void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &best_path, int &best_price) {
+void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &best_path,
+                 int &best_price, uint16_t minimal_price) {
+
     std::vector<route_t*> current_path = best_path;
     int current_price = best_price;
 
-    tabu_t tabu(days_total, days_total);
-    tabu_t freq(days_total, days_total);
+    semimatrix_t tabu(days_total, days_total);
+    semimatrix_t freq(days_total, days_total);
 
-    for (int i=0; i<4000; ++i) {
-        neighbour_t neighbour = find_best_neighbour(days_total, current_price, current_path, best_price, &tabu, &freq);
+    for (int i=0; i<1000; ++i) {
+        neighbour_t neighbour = find_best_neighbour(days_total, current_price,
+                                                    current_path, best_price,
+                                                    &tabu, &freq,
+                                                    minimal_price);
 
         if (neighbour.i != 0) {
             neighbour.apply(current_path);
             tabu.set(neighbour.i, neighbour.j);
+            freq.inc(neighbour.i, neighbour.j);
             current_price = neighbour.price;
             if (neighbour.price < best_price) {
                 best_path = current_path;
@@ -377,18 +418,24 @@ int main(int argc, char **argv) {
 
     std::map<std::string, node_t*> nodes;
     node_t* start;
+    uint16_t minimal_price = 0;
     std::cerr << "Loading " << std::endl;
-    uint16_t days_total = read_input(nodes, start);
+    uint16_t days_total = read_input(nodes, start, minimal_price);
     
     std::cerr << "Loading done" << std::endl;
 
     std::vector<route_t *> path;
     int total_price = 0;
 
-    depth_search(start, days_total, path, total_price);
+    bool full_scan = days_total < 20;
+    full_scan = false;
+
+    depth_search(start, days_total, path, total_price, full_scan);
     display(path, total_price);
 
-    tabu_search(start, days_total, path, total_price);
+    if (!full_scan) {
+        tabu_search(start, days_total, path, total_price, minimal_price);
+    }
 
     //display(path, total_price);
 
@@ -400,34 +447,7 @@ int main(int argc, char **argv) {
 bool route_ptr_compare_t::operator () (const route_t* const &lhs, const route_t* const &rhs) const {
     return lhs->price < rhs->price;
 }
-/*
-    // Bootstrap naive path
-    std::vector<route_t *> path;
-    std::set<node_t *> visited_nodes;
-    node_t *current_node = start;
-    int total_price = 0;
 
-    visited_nodes.insert(start);
-    for (uint16_t day = 0; day < days_total; ++day) {
-        bool route_appended = false;
-        for (auto it = current_node->routes[day].cbegin(); it != current_node->routes[day].cend(); ++it) {
-            if (
-                    (day == days_total - 1 && (*it)->dest == start)
-                ||
-                    !visited_nodes.count((*it)->dest)
-                ) {
-
-                path.push_back((*it));
-                current_node = (*it)->dest;
-                visited_nodes.insert(current_node);
-                total_price += (*it)->price;
-                route_appended = true;
-                break;
-            }
-        }
-        if (!route_appended) {
-            std::cout << "No straight way, man! :)" << std::endl;
-            break;
-        }
-    }
-    */
+bool penalized_neighbour_compare_t::operator () (const std::pair<int,neighbour_t> &lhs, const std::pair<int,neighbour_t> &rhs) const {
+    return lhs.first < rhs.first;
+}
