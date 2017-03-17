@@ -233,7 +233,7 @@ void depth_search(node_t * start, uint16_t days_total,
                     if (best_price == -1 || best_price > total_price) {
                         best_path = path;
                         best_price = total_price;
-                        display(best_path, best_price);
+                        //display(best_path, best_price);
                     }
                 } else {
                     break;
@@ -257,9 +257,9 @@ void depth_search(node_t * start, uint16_t days_total,
         }
     } while (!stack.empty());
 
-    std::cerr << day << std::endl;
+    //std::cerr << day << std::endl;
     if (day != days_total && !(full_scan && best_price != -1)) {
-        std::cerr << "Stack depleted" << std::endl;
+        std::cerr << "Stack depleted, no circle" << std::endl;
     }
 
     if (full_scan) {
@@ -322,7 +322,7 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             if (tabu->applies(i, j)) {
                 //std::cerr << "Neighbour in tabu" << std::endl;
                 if (neighbour_price < best_price) {
-                    std::cerr << "Tabu cancelled - Aspiration criteria met" << std::endl;
+                    //std::cerr << "Tabu cancelled - Aspiration criteria met" << std::endl;
                 } else {
                     continue;
                 }
@@ -405,15 +405,15 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
             if (neighbour.price < best_price) {
                 best_path = current_path;
                 best_price = current_price;
-                display(current_path, neighbour.price);
+                //display(current_path, neighbour.price);
             }
         } else {
-            std::cerr << "No applicable neighbour" << std::endl;
+            //std::cerr << "No applicable neighbour" << std::endl;
         }
 
     }
 
-    display(best_path, best_price);
+    //display(best_path, best_price);
 
 }
 
@@ -423,10 +423,10 @@ int main(int argc, char **argv) {
     std::map<std::string, node_t*> nodes;
     node_t* start;
     uint16_t minimal_price = 0;
-    std::cerr << "Loading " << std::endl;
+    //std::cerr << "Loading " << std::endl;
     uint16_t days_total = read_input(nodes, start, minimal_price);
     
-    std::cerr << "Loading done" << std::endl;
+    //std::cerr << "Loading done" << std::endl;
 
     std::vector<route_t *> path;
     int total_price = 0;
@@ -435,13 +435,13 @@ int main(int argc, char **argv) {
     full_scan = false;
 
     depth_search(start, days_total, path, total_price, full_scan);
-    display(path, total_price);
+    //display(path, total_price);
 
     if (!full_scan) {
         tabu_search(start, days_total, path, total_price, minimal_price);
     }
 
-    //display(path, total_price);
+    display(path, total_price);
 
     cleanup(nodes);
 
