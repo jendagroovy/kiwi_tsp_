@@ -147,6 +147,44 @@ struct neighbour_t {
             path[j] = node_i->routes[j][node_j->name];
         }
     };
+
+    bool try_apply(std::vector<route_t*> &path) {
+        node_t * node_i_pre = path[i-1]->src;
+        node_t * node_i = path[i]->src;
+        node_t * node_i_post = path[i]->dest;
+
+        node_t * node_j_pre = path[j-1]->src;
+        node_t * node_j = path[j]->src;
+        node_t * node_j_post = path[j]->dest;
+
+
+        route_t * new_i_right = node_j->get_route(i, node_i_post->name);
+        route_t * new_j_left = node_j_pre->get_route(j-1, node_i->name);
+
+        if (new_i_right == NULL || new_j_left == NULL) return false;
+
+        route_t * new_i_left;
+        route_t * new_j_right;
+
+        if (i - j > 1) {
+            route_t * new_i_left = node_i_pre->get_route(i-1,node_j->name);
+            new_j_right = node_i->get_route(j,node_j_post->name);
+
+            if (new_i_left == NULL || new_j_right == NULL) return false;
+
+            path[i-1] = new_i_left;
+        } else {
+            new_j_right = node_i->get_route(j,node_j->name);
+
+            if (new_j_right == NULL) return false;
+        }
+
+        path[j] = new_j_right;
+        path[i] = new_i_right;
+        path[j-1] = new_j_left;
+
+        return true;
+    };
 };
 
 struct penalized_neighbour_compare_t {
@@ -448,11 +486,16 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
         }
 
         if (iter_since_improvement > 400) {
-            neighbour_t neighbour(0,0,0);
-            freq.get_minimum(&neighbour.i, &neighbour.j);
-            neighbour.apply(current_path);
+            bool applied = false;
+            while (!applied) {
+                neighbour_t neighbour(0,0,0);
+                freq.get_minimum(&neighbour.i, &neighbour.j);
+                applied = neighbour.try_apply(current_path);
+                if (!applied) std::cout << "not applicable" << std::endl;
+            }
             tabu.clear();
             freq.clear();
+            iter_since_improvement++;
             recalculate_price(current_path, &current_price);
         }
     }
