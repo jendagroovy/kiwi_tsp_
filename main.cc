@@ -17,20 +17,21 @@ struct route_ptr_compare_t {
 };
 
 struct node_t {
-    node_t(std::string name) : name(name) {};
-    route_t * get_route(uint16_t day, std::string dest_name) {
+    node_t(std::string name, uint16_t idx) : name(name), idx(idx) {};
 
-        auto routes_for_day_it = routes.find(day);
-        if (routes_for_day_it == routes.end()) return NULL;
+    void add_route(uint16_t day, uint16_t dest_idx, route_t * route) {
+        if (routes.size() <= day) {
+            routes.resize(day + 1);
+        }
 
-        auto route_it = routes_for_day_it->second.find(dest_name);
-        if (route_it == routes_for_day_it->second.end()) return NULL;
-        
-        return route_it->second;
-    };
+        if (routes[day].size() <= dest_idx) {
+            routes[day].resize(dest_idx + 1, NULL);
+        }
+    }
 
+    uint16_t idx;
     std::string name;
-    std::map<uint16_t, std::map<std::string, route_t*> > routes;
+    std::vector< std::vector<route_t*> > routes;
 };
 
 struct route_t {
@@ -137,14 +138,14 @@ struct neighbour_t {
         node_t * node_j_post = path[j]->dest;
 
 
-        path[i] = node_j->routes[i][node_i_post->name];
-        path[j-1] = node_j_pre->routes[j-1][node_i->name];
+        path[i] = node_j->routes[i][node_i_post->idx];
+        path[j-1] = node_j_pre->routes[j-1][node_i->idx];
 
         if (i - j > 1) {
-            path[i-1] = node_i_pre->routes[i-1][node_j->name];
-            path[j] = node_i->routes[j][node_j_post->name];
+            path[i-1] = node_i_pre->routes[i-1][node_j->idx];
+            path[j] = node_i->routes[j][node_j_post->idx];
         } else {
-            path[j] = node_i->routes[j][node_j->name];
+            path[j] = node_i->routes[j][node_j->idx];
         }
     };
 
@@ -158,8 +159,8 @@ struct neighbour_t {
         node_t * node_j_post = path[j]->dest;
 
 
-        route_t * new_i_right = node_j->get_route(i, node_i_post->name);
-        route_t * new_j_left = node_j_pre->get_route(j-1, node_i->name);
+        route_t * new_i_right = node_j->routes[i][node_i_post->idx];
+        route_t * new_j_left = node_j_pre->routes[j-1][node_i->idx];
 
         if (new_i_right == NULL || new_j_left == NULL) return false;
 
@@ -167,14 +168,14 @@ struct neighbour_t {
         route_t * new_j_right;
 
         if (i - j > 1) {
-            route_t * new_i_left = node_i_pre->get_route(i-1,node_j->name);
-            new_j_right = node_i->get_route(j,node_j_post->name);
+            route_t * new_i_left = node_i_pre->routes[i-1][node_j->idx];
+            new_j_right = node_i->routes[j][node_j_post->idx];
 
             if (new_i_left == NULL || new_j_right == NULL) return false;
 
             path[i-1] = new_i_left;
         } else {
-            new_j_right = node_i->get_route(j,node_j->name);
+            new_j_right = node_i->routes[j][node_j->idx];
 
             if (new_j_right == NULL) return false;
         }
@@ -187,15 +188,18 @@ struct neighbour_t {
     };
 };
 
+//std::vector<std::string> node_names;
+std::map<std::string, int> node_name_map;
+
 struct penalized_neighbour_compare_t {
     bool operator () (const std::pair<int,neighbour_t> &lhs, const std::pair<int,neighbour_t> &rhs) const;
 };
 
 
-uint16_t read_input(std::map<std::string, node_t*> &nodes, node_t* &start, uint16_t &minimal_price) {
+uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minimal_price) {
     io::CSVReader<4, io::trim_chars<' '>, io::no_quote_escape<' '> > reader("stdin", std::cin);
-    char *start_code = reader.next_line();
 
+    char *start_code = reader.next_line();
 
     std::string src_code, dest_code;
     uint16_t price;
@@ -204,36 +208,57 @@ uint16_t read_input(std::map<std::string, node_t*> &nodes, node_t* &start, uint1
     uint16_t days_total = 0;
 
     while(reader.read_row(src_code, dest_code, day, price)) {
-        if (nodes.count(src_code) == 0) {
-            node_t *new_node = new node_t(src_code);
-            nodes.insert(std::pair<std::string, node_t*>(src_code, new_node));
-        }
-        if (nodes.count(dest_code) == 0) {
-            node_t *new_node = new node_t(dest_code);
-            nodes.insert(std::pair<std::string, node_t*>(dest_code, new_node));
+        uint16_t src_idx = node_name_map[src_code];
+        uint16_t dest_idx = node_name_map[dest_code];
+
+        if (node_name_map.count(src_code) == 0) {
+            src_idx = nodes.size();
+            node_name_map[src_code] = src_idx;
+            node_t *new_node = new node_t(src_code, src_idx);
+            nodes.push_back(new_node);
+        } else {
+            src_idx = node_name_map[src_code];
         }
 
-        route_t *route = new route_t(nodes[src_code], nodes[dest_code], price);
-        nodes[src_code]->routes[day][dest_code] = route;
+        if (node_name_map.count(dest_code) == 0) {
+            dest_idx = nodes.size();
+            node_name_map[dest_code] = dest_idx;
+            node_t *new_node = new node_t(dest_code, dest_idx);
+            nodes.push_back(new_node);
+        } else {
+            dest_idx = node_name_map[dest_code];
+        }
+
+        route_t *route = new route_t(nodes[src_idx], nodes[dest_idx], price);
+        nodes[src_idx]->add_route(day, dest_idx, route);
 
         if (days_total == 0 || price < minimal_price) minimal_price = price;
         if (day >= days_total) days_total = day + 1;
     }
 
-    start = nodes[start_code];
+    // Resize all vectors
+    for (auto node_it = nodes.cbegin(); node_it != nodes.cend(); ++node_it) {
+        if ((*node_it)->routes.size() < days_total) (*node_it)->routes.resize(days_total);
+        for (auto day_it = (*node_it)->routes.begin(); day_it != (*node_it)->routes.end(); ++day_it) {
+            if (day_it->size() < days_total) day_it->resize(days_total, NULL);
+        }
+        
+    }
+
+    start = nodes[node_name_map[start_code]];
 
     return days_total;
 }
 
 
-void cleanup(std::map<std::string, node_t*> nodes) {
+void cleanup(std::vector<node_t*> nodes) {
     for (auto it_node = nodes.cbegin(); it_node != nodes.cend(); ++it_node) {
-        for (auto it_day = it_node->second->routes.cbegin(); it_day != it_node->second->routes.cend(); ++it_day) {
-            for (auto it_route = it_day->second.cbegin(); it_route != it_day->second.cend(); ++it_route) {
-                delete it_route->second;
+        for (auto it_day = (*it_node)->routes.cbegin(); it_day != (*it_node)->routes.cend(); ++it_day) {
+            for (auto it_route = it_day->cbegin(); it_route != it_day->cend(); ++it_route) {
+                delete *it_route;
             }
         }
-        delete it_node->second;
+        delete *it_node;
     }
 }
 
@@ -264,7 +289,7 @@ void depth_search(node_t * start, uint16_t days_total,
     // Preload stack with routes of the first node
     std::set<route_t*, route_ptr_compare_t> ordered_routes;  // Sort routes in set
     for (auto it = start->routes[0].cbegin(); it != start->routes[0].cend(); ++it) {
-        ordered_routes.insert(it->second);
+        ordered_routes.insert(*it);
     }
     for (auto it = ordered_routes.crbegin(); it != ordered_routes.crend(); ++it) {
         stack.push(stack_op_t(FORTH, *it));
@@ -306,12 +331,12 @@ void depth_search(node_t * start, uint16_t days_total,
             std::set<route_t*, route_ptr_compare_t> ordered_routes;  // Sort routes in set
             for (auto it = this_node->routes[day].cbegin(); it != this_node->routes[day].cend(); ++it) {
                 if (
-                        (day == days_total - 1 && it->second->dest == start)
+                        (day == days_total - 1 && (*it)->dest == start)
                     ||
-                        !visited_nodes.count(it->second->dest)
+                        !visited_nodes.count((*it)->dest)
                     ) {
 
-                    ordered_routes.insert(it->second);
+                    ordered_routes.insert(*it);
                 }
             }
             for (auto it = ordered_routes.crbegin(); it != ordered_routes.crend(); ++it) {
@@ -364,11 +389,11 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             node_t* node_i = path[i]->src;
             node_t* node_j = path[j]->src;
 
-            route_t* new_i_left = old_j_left->src->get_route(j-1, node_i->name);
-            route_t* new_i_right = node_i->get_route(j, old_j_right->dest->name);
+            route_t* new_i_left = old_j_left->src->routes[j-1][node_i->idx];
+            route_t* new_i_right = node_i->routes[j][old_j_right->dest->idx];
 
-            route_t* new_j_left = old_i_left->src->get_route(i-1, node_j->name);
-            route_t* new_j_right = node_j->get_route(i, old_i_right->dest->name);
+            route_t* new_j_left = old_i_left->src->routes[i-1][node_j->idx];
+            route_t* new_j_right = node_j->routes[i][old_i_right->dest->idx];
 
             if (new_i_left == NULL || new_i_right == NULL || new_j_left == NULL || new_j_right == NULL) {
                 // std::cerr << "Not a valid neighbour - route missing" << std::endl;
@@ -485,6 +510,7 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
             //std::cerr << "No applicable neighbour" << std::endl;
         }
 
+        /*
         if (iter_since_improvement > 400) {
             bool applied = false;
             while (!applied && difftime(time(NULL), started) < 29) {
@@ -500,6 +526,7 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
                 recalculate_price(current_path, &current_price);
             }
         }
+        */
     }
 
     //display(best_path, best_price);
@@ -509,7 +536,7 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
 
 int main(int argc, char **argv) {
 
-    std::map<std::string, node_t*> nodes;
+    std::vector<node_t*> nodes;
     node_t* start;
     uint16_t minimal_price = 0;
     //std::cerr << "Loading " << std::endl;
