@@ -12,6 +12,9 @@
 #include "csv.h"
 
 typedef std::array<char, 4> nodename_t;
+struct nodename_compare_t {
+    bool operator () (const nodename_t &lhs, const nodename_t &rhs) const;
+};
 
 struct route_t;
 
@@ -200,7 +203,7 @@ struct neighbour_t {
     };
 };
 
-std::map<nodename_t, int> node_name_map;
+std::map<nodename_t, int, nodename_compare_t> node_name_map;
 time_t started = time(NULL);
 
 struct penalized_neighbour_compare_t {
@@ -586,4 +589,17 @@ bool route_ptr_compare_t::operator () (const route_t* const &lhs, const route_t*
 
 bool penalized_neighbour_compare_t::operator () (const std::pair<int,neighbour_t> &lhs, const std::pair<int,neighbour_t> &rhs) const {
     return lhs.first < rhs.first;
+}
+
+bool nodename_compare_t::operator () (const nodename_t &lhs, const nodename_t &rhs) const {
+    auto ldata = lhs.data();
+    auto rdata = rhs.data();
+    
+    if (ldata[0] == rdata[0]) {
+        if (ldata[1] == rdata[1]) {
+            return ldata[2] < rdata[2];
+        }
+        return ldata[1] < rdata[1];
+    }
+    return ldata[0] < rdata[0];
 }
