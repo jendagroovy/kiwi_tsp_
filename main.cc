@@ -17,9 +17,16 @@ struct route_ptr_compare_t {
 };
 
 struct node_t {
-    node_t(std::string name, uint16_t idx) : name(name), idx(idx) {};
+    node_t(std::string name, uint16_t idx) : name(name), idx(idx) {
+        routes.resize(300);
+        for (auto it = routes.begin(); it != routes.end(); ++it) {
+            it->resize(300, NULL);
+        }
+
+    };
 
     void add_route(uint16_t day, uint16_t dest_idx, route_t * route) {
+    /*
         if (routes.size() <= day) {
             routes.resize(day + 1);
         }
@@ -27,7 +34,7 @@ struct node_t {
         if (routes[day].size() <= dest_idx) {
             routes[day].resize(dest_idx + 1, NULL);
         }
-
+*/
         routes[day][dest_idx] = route;
     }
 
@@ -190,8 +197,8 @@ struct neighbour_t {
     };
 };
 
-//std::vector<std::string> node_names;
 std::map<std::string, int> node_name_map;
+time_t started = time(NULL);
 
 struct penalized_neighbour_compare_t {
     bool operator () (const std::pair<int,neighbour_t> &lhs, const std::pair<int,neighbour_t> &rhs) const;
@@ -348,7 +355,6 @@ void depth_search(node_t * start, uint16_t days_total,
         }
     } while (!stack.empty());
 
-    //std::cerr << day << std::endl;
     if (day != days_total && !(full_scan && best_price != -1)) {
         std::cerr << "Stack depleted, no circle" << std::endl;
     }
@@ -487,7 +493,6 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
     semimatrix_t tabu(days_total - 1, days_total - 1);
     semimatrix_t freq(days_total - 1, days_total - 1);
 
-    time_t started = time(NULL);
     int iter_since_improvement = 0;
 
     while (difftime(time(NULL), started) < 29) {
@@ -544,7 +549,7 @@ int main(int argc, char **argv) {
     uint16_t minimal_price = 0;
     //std::cerr << "Loading " << std::endl;
     uint16_t days_total = read_input(nodes, start, minimal_price);
-    
+
     //std::cerr << "Loading done" << std::endl;
 
     std::vector<route_t *> path;
