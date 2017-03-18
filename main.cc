@@ -474,6 +474,8 @@ neighbour_t find_best_neighbour(uint16_t days_total,
 
     //std::cerr << "Returning best neighbour with price " << best_neighbour.price << std::endl;
     //std::cerr << "i=" << best_neighbour.i << " j=" << best_neighbour.j << std::endl;
+
+    if (days_total > 200) return best_neighbour; //jinak to nestihne
     
     if (best_neighbour.i == 0) {
         // No applicable neighbours
@@ -536,7 +538,7 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
             //std::cerr << "No applicable neighbour" << std::endl;
         }
 
-        /*
+/*
         if (iter_since_improvement > 400) {
             bool applied = false;
             while (!applied && difftime(time(NULL), started) < 29) {
@@ -552,9 +554,8 @@ void tabu_search(node_t * start, uint16_t days_total, std::vector<route_t*> &bes
                 recalculate_price(current_path, &current_price);
             }
         }
-        */
+*/
     }
-
     //display(best_path, best_price);
 
 }
@@ -567,13 +568,12 @@ int main(int argc, char **argv) {
     uint16_t minimal_price = 0;
     //std::cerr << "Loading " << std::endl;
     uint16_t days_total = read_input(nodes, start, minimal_price);
-return 0;
     //std::cerr << "Loading done" << std::endl;
 
     std::vector<route_t *> path;
     int total_price = 0;
 
-    bool full_scan = days_total < 20;
+    bool full_scan = days_total <= 20;
     full_scan = false;
 
     depth_search(start, days_total, path, total_price, full_scan);
