@@ -27,6 +27,8 @@ struct node_t {
         if (routes[day].size() <= dest_idx) {
             routes[day].resize(dest_idx + 1, NULL);
         }
+
+        routes[day][dest_idx] = route;
     }
 
     uint16_t idx;
@@ -208,8 +210,8 @@ uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minim
     uint16_t days_total = 0;
 
     while(reader.read_row(src_code, dest_code, day, price)) {
-        uint16_t src_idx = node_name_map[src_code];
-        uint16_t dest_idx = node_name_map[dest_code];
+        uint16_t src_idx = 0;
+        uint16_t dest_idx = 0;
 
         if (node_name_map.count(src_code) == 0) {
             src_idx = nodes.size();
@@ -255,7 +257,7 @@ void cleanup(std::vector<node_t*> nodes) {
     for (auto it_node = nodes.cbegin(); it_node != nodes.cend(); ++it_node) {
         for (auto it_day = (*it_node)->routes.cbegin(); it_day != (*it_node)->routes.cend(); ++it_day) {
             for (auto it_route = it_day->cbegin(); it_route != it_day->cend(); ++it_route) {
-                delete *it_route;
+                if (*it_route != NULL) delete *it_route;
             }
         }
         delete *it_node;
@@ -289,7 +291,7 @@ void depth_search(node_t * start, uint16_t days_total,
     // Preload stack with routes of the first node
     std::set<route_t*, route_ptr_compare_t> ordered_routes;  // Sort routes in set
     for (auto it = start->routes[0].cbegin(); it != start->routes[0].cend(); ++it) {
-        ordered_routes.insert(*it);
+        if (*it != NULL) ordered_routes.insert(*it);
     }
     for (auto it = ordered_routes.crbegin(); it != ordered_routes.crend(); ++it) {
         stack.push(stack_op_t(FORTH, *it));
@@ -330,6 +332,7 @@ void depth_search(node_t * start, uint16_t days_total,
 
             std::set<route_t*, route_ptr_compare_t> ordered_routes;  // Sort routes in set
             for (auto it = this_node->routes[day].cbegin(); it != this_node->routes[day].cend(); ++it) {
+                if (*it == NULL) continue;
                 if (
                         (day == days_total - 1 && (*it)->dest == start)
                     ||
