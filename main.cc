@@ -209,7 +209,7 @@ struct neighbour_t {
     };
 };
 
-std::unordered_map<nodename_t, int, nodename_hash_t> node_name_map;
+std::vector<nodename_t> node_name_map;
 time_t started = time(NULL);
 
 struct penalized_neighbour_compare_t {
@@ -231,28 +231,36 @@ uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minim
     uint16_t days_total = 0;
 
     while(reader.read_row(src_code_raw, dest_code_raw, day, price)) {
-        uint16_t src_idx = 0;
-        uint16_t dest_idx = 0;
-
         nodename_t src_code = {src_code_raw[0], src_code_raw[1], src_code_raw[2], 0};
         nodename_t dest_code = {dest_code_raw[0], dest_code_raw[1], dest_code_raw[2], 0};
 
-        if (node_name_map.count(src_code) == 0) {
-            src_idx = nodes.size();
-            node_name_map[src_code] = src_idx;
-            node_t *new_node = new node_t(src_code, src_idx);
-            nodes.push_back(new_node);
-        } else {
-            src_idx = node_name_map[src_code];
+        int src_idx = -1;
+        int dest_idx = -1;
+        int idx = 0;
+
+        for (auto it = node_name_map.cbegin(); it != node_name_map.cend(); ++it, ++idx) {
+            if (*it == src_code) {
+                src_idx = idx;
+                if (dest_idx != -1) break;
+            }
+            if (*it == dest_code) {
+                dest_idx = idx;
+                if (src_idx != -1) break;
+            }
         }
 
-        if (node_name_map.count(dest_code) == 0) {
+        if (src_idx == -1) {
+            src_idx = nodes.size();
+            node_name_map.push_back(src_code);
+            node_t *new_node = new node_t(src_code, src_idx);
+            nodes.push_back(new_node);
+        }
+
+        if (dest_idx == -1) {
             dest_idx = nodes.size();
-            node_name_map[dest_code] = dest_idx;
+            node_name_map.push_back(dest_code);
             node_t *new_node = new node_t(dest_code, dest_idx);
             nodes.push_back(new_node);
-        } else {
-            dest_idx = node_name_map[dest_code];
         }
 
         route_t *route = new route_t(nodes[src_idx], nodes[dest_idx], price);
@@ -273,7 +281,15 @@ uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minim
     }
     */
 
-    start = nodes[node_name_map[start_code]];
+    uint16_t idx = 0;
+    uint16_t start_idx = 0;
+    for (auto it = node_name_map.cbegin(); it != node_name_map.cend(); ++it, ++idx) {
+        if (*it == start_code) {
+            start_idx = idx;
+            break;
+        }
+    }
+    start = nodes[start_idx];
 
     return days_total;
 }
@@ -567,7 +583,7 @@ int main(int argc, char **argv) {
     uint16_t minimal_price = 0;
     //std::cerr << "Loading " << std::endl;
     uint16_t days_total = read_input(nodes, start, minimal_price);
-return 0;
+//return 0;
     //std::cerr << "Loading done" << std::endl;
 
     std::vector<route_t *> path;
