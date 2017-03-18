@@ -24,10 +24,6 @@ struct route_ptr_compare_t {
 
 struct node_t {
     node_t(nodename_t name, uint16_t idx) : name(name), idx(idx) {
-        routes.resize(300);
-        for (auto it = routes.begin(); it != routes.end(); ++it) {
-            it->resize(300, NULL);
-        }
 
     };
 
@@ -41,12 +37,17 @@ struct node_t {
             routes[day].resize(dest_idx + 1, NULL);
         }
 */
-        routes[day][dest_idx] = route;
+        routes[300*day + dest_idx] = route;
+    }
+
+    route_t * get_route(uint16_t day, uint16_t dest_idx) {
+        return routes[300*day + dest_idx];
     }
 
     uint16_t idx;
     nodename_t name;
-    std::vector< std::vector<route_t*> > routes;
+    //std::vector< std::vector<route_t*> > routes;
+    route_t *routes[90000] = {0};
 };
 
 struct route_t {
@@ -153,14 +154,14 @@ struct neighbour_t {
         node_t * node_j_post = path[j]->dest;
 
 
-        path[i] = node_j->routes[i][node_i_post->idx];
-        path[j-1] = node_j_pre->routes[j-1][node_i->idx];
+        path[i] = node_j->get_route(i, node_i_post->idx);
+        path[j-1] = node_j_pre->get_route(j-1, node_i->idx);
 
         if (i - j > 1) {
-            path[i-1] = node_i_pre->routes[i-1][node_j->idx];
-            path[j] = node_i->routes[j][node_j_post->idx];
+            path[i-1] = node_i_pre->get_route(i-1, node_j->idx);
+            path[j] = node_i->get_route(j, node_j_post->idx);
         } else {
-            path[j] = node_i->routes[j][node_j->idx];
+            path[j] = node_i->get_route(j, node_j->idx);
         }
     };
 
@@ -174,8 +175,8 @@ struct neighbour_t {
         node_t * node_j_post = path[j]->dest;
 
 
-        route_t * new_i_right = node_j->routes[i][node_i_post->idx];
-        route_t * new_j_left = node_j_pre->routes[j-1][node_i->idx];
+        route_t * new_i_right = node_j->get_route(i, node_i_post->idx);
+        route_t * new_j_left = node_j_pre->get_route(j-1, node_i->idx);
 
         if (new_i_right == NULL || new_j_left == NULL) return false;
 
@@ -183,14 +184,14 @@ struct neighbour_t {
         route_t * new_j_right;
 
         if (i - j > 1) {
-            route_t * new_i_left = node_i_pre->routes[i-1][node_j->idx];
-            new_j_right = node_i->routes[j][node_j_post->idx];
+            route_t * new_i_left = node_i_pre->get_route(i-1, node_j->idx);
+            new_j_right = node_i->get_route(j, node_j_post->idx);
 
             if (new_i_left == NULL || new_j_right == NULL) return false;
 
             path[i-1] = new_i_left;
         } else {
-            new_j_right = node_i->routes[j][node_j->idx];
+            new_j_right = node_i->get_route(j, node_j->idx);
 
             if (new_j_right == NULL) return false;
         }
@@ -256,6 +257,7 @@ uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minim
         if (day >= days_total) days_total = day + 1;
     }
 
+    /*
     // Resize all vectors
     for (auto node_it = nodes.cbegin(); node_it != nodes.cend(); ++node_it) {
         if ((*node_it)->routes.size() < days_total) (*node_it)->routes.resize(days_total);
@@ -264,6 +266,7 @@ uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minim
         }
         
     }
+    */
 
     start = nodes[node_name_map[start_code]];
 
@@ -273,10 +276,9 @@ uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minim
 
 void cleanup(std::vector<node_t*> nodes) {
     for (auto it_node = nodes.cbegin(); it_node != nodes.cend(); ++it_node) {
-        for (auto it_day = (*it_node)->routes.cbegin(); it_day != (*it_node)->routes.cend(); ++it_day) {
-            for (auto it_route = it_day->cbegin(); it_route != it_day->cend(); ++it_route) {
-                if (*it_route != NULL) delete *it_route;
-            }
+        for (int i=0; i<90000; ++i) {
+            route_t * route = (*it_node)->routes[i];
+            if (route != NULL) delete route;
         }
         delete *it_node;
     }
@@ -308,8 +310,8 @@ void depth_search(node_t * start, uint16_t days_total,
 
     // Preload stack with routes of the first node
     std::set<route_t*, route_ptr_compare_t> ordered_routes;  // Sort routes in set
-    for (auto it = start->routes[0].cbegin(); it != start->routes[0].cend(); ++it) {
-        if (*it != NULL) ordered_routes.insert(*it);
+    for (int i = 0; i < 300; ++i) {
+        if (start->routes[i] != NULL) ordered_routes.insert(start->routes[i]);
     }
     for (auto it = ordered_routes.crbegin(); it != ordered_routes.crend(); ++it) {
         stack.push(stack_op_t(FORTH, *it));
@@ -349,15 +351,15 @@ void depth_search(node_t * start, uint16_t days_total,
             }
 
             std::set<route_t*, route_ptr_compare_t> ordered_routes;  // Sort routes in set
-            for (auto it = this_node->routes[day].cbegin(); it != this_node->routes[day].cend(); ++it) {
-                if (*it == NULL) continue;
+            for (int i = 300 * day; i < 300 * (day + 1); ++i) {
+                if (this_node->routes[i] == NULL) continue;
                 if (
-                        (day == days_total - 1 && (*it)->dest == start)
+                        (day == days_total - 1 && this_node->routes[i]->dest == start)
                     ||
-                        !visited_nodes.count((*it)->dest)
+                        !visited_nodes.count(this_node->routes[i]->dest)
                     ) {
 
-                    ordered_routes.insert(*it);
+                    ordered_routes.insert(this_node->routes[i]);
                 }
             }
             for (auto it = ordered_routes.crbegin(); it != ordered_routes.crend(); ++it) {
@@ -409,11 +411,11 @@ neighbour_t find_best_neighbour(uint16_t days_total,
             node_t* node_i = path[i]->src;
             node_t* node_j = path[j]->src;
 
-            route_t* new_i_left = old_j_left->src->routes[j-1][node_i->idx];
-            route_t* new_i_right = node_i->routes[j][old_j_right->dest->idx];
+            route_t* new_i_left = old_j_left->src->get_route(j-1, node_i->idx);
+            route_t* new_i_right = node_i->get_route(j, old_j_right->dest->idx);
 
-            route_t* new_j_left = old_i_left->src->routes[i-1][node_j->idx];
-            route_t* new_j_right = node_j->routes[i][old_i_right->dest->idx];
+            route_t* new_j_left = old_i_left->src->get_route(i-1, node_j->idx);
+            route_t* new_j_right = node_j->get_route(i, old_i_right->dest->idx);
 
             if (new_i_left == NULL || new_i_right == NULL || new_j_left == NULL || new_j_right == NULL) {
                 // std::cerr << "Not a valid neighbour - route missing" << std::endl;
