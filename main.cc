@@ -218,7 +218,7 @@ struct penalized_neighbour_compare_t {
 
 
 uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minimal_price) {
-    io::CSVReader<4, io::trim_chars<>, io::no_quote_escape<' '> > reader("stdin", std::cin);
+    io::CSVReader<4, io::trim_chars<>, io::no_quote_escape<' '>, io::ignore_overflow > reader("stdin", std::cin);
 
     char *start_code_raw = reader.next_line();
     nodename_t start_code = {start_code_raw[0], start_code_raw[1], start_code_raw[2], 0};
