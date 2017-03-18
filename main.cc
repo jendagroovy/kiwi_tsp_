@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <set>
@@ -14,6 +15,10 @@
 typedef std::array<char, 4> nodename_t;
 struct nodename_compare_t {
     bool operator () (const nodename_t &lhs, const nodename_t &rhs) const;
+};
+
+struct nodename_hash_t {
+    size_t operator () (const nodename_t &nodename) const;
 };
 
 struct route_t;
@@ -204,7 +209,7 @@ struct neighbour_t {
     };
 };
 
-std::map<nodename_t, int, nodename_compare_t> node_name_map;
+std::unordered_map<nodename_t, int, nodename_hash_t> node_name_map;
 time_t started = time(NULL);
 
 struct penalized_neighbour_compare_t {
@@ -213,7 +218,7 @@ struct penalized_neighbour_compare_t {
 
 
 uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minimal_price) {
-    io::CSVReader<4, io::trim_chars<' '>, io::no_quote_escape<' '> > reader("stdin", std::cin);
+    io::CSVReader<4, io::trim_chars<>, io::no_quote_escape<' '> > reader("stdin", std::cin);
 
     char *start_code_raw = reader.next_line();
     nodename_t start_code = {start_code_raw[0], start_code_raw[1], start_code_raw[2], 0};
@@ -604,4 +609,10 @@ bool nodename_compare_t::operator () (const nodename_t &lhs, const nodename_t &r
         return ldata[1] < rdata[1];
     }
     return ldata[0] < rdata[0];
+}
+
+size_t nodename_hash_t::operator () (const nodename_t &nodename) const {
+    auto data = nodename.data();
+    return (data[2] << 16) + (data[1] << 8) + data[0];
+
 }
