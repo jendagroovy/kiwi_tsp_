@@ -7,8 +7,11 @@
 #include <set>
 #include <stack>
 #include <ctime>
+#include <array>
 
 #include "csv.h"
+
+typedef std::array<char, 4> nodename_t;
 
 struct route_t;
 
@@ -17,7 +20,7 @@ struct route_ptr_compare_t {
 };
 
 struct node_t {
-    node_t(std::string name, uint16_t idx) : name(name), idx(idx) {
+    node_t(nodename_t name, uint16_t idx) : name(name), idx(idx) {
         routes.resize(300);
         for (auto it = routes.begin(); it != routes.end(); ++it) {
             it->resize(300, NULL);
@@ -39,7 +42,7 @@ struct node_t {
     }
 
     uint16_t idx;
-    std::string name;
+    nodename_t name;
     std::vector< std::vector<route_t*> > routes;
 };
 
@@ -197,7 +200,7 @@ struct neighbour_t {
     };
 };
 
-std::map<std::string, int> node_name_map;
+std::map<nodename_t, int> node_name_map;
 time_t started = time(NULL);
 
 struct penalized_neighbour_compare_t {
@@ -208,17 +211,22 @@ struct penalized_neighbour_compare_t {
 uint16_t read_input(std::vector<node_t*> &nodes, node_t* &start, uint16_t &minimal_price) {
     io::CSVReader<4, io::trim_chars<' '>, io::no_quote_escape<' '> > reader("stdin", std::cin);
 
-    char *start_code = reader.next_line();
+    char *start_code_raw = reader.next_line();
+    nodename_t start_code = {start_code_raw[0], start_code_raw[1], start_code_raw[2], 0};
 
-    std::string src_code, dest_code;
+    char * src_code_raw;
+    char * dest_code_raw;
     uint16_t price;
     uint16_t day;
 
     uint16_t days_total = 0;
 
-    while(reader.read_row(src_code, dest_code, day, price)) {
+    while(reader.read_row(src_code_raw, dest_code_raw, day, price)) {
         uint16_t src_idx = 0;
         uint16_t dest_idx = 0;
+
+        nodename_t src_code = {src_code_raw[0], src_code_raw[1], src_code_raw[2], 0};
+        nodename_t dest_code = {dest_code_raw[0], dest_code_raw[1], dest_code_raw[2], 0};
 
         if (node_name_map.count(src_code) == 0) {
             src_idx = nodes.size();
@@ -276,7 +284,7 @@ void display(std::vector<route_t *> path, int total_price) {
 
     int i = 0;
     for (auto it = path.cbegin(); it != path.cend(); ++it, ++i) {
-        std::cout << (*it)->src->name << " " << (*it)->dest->name << " " << i << " " << (*it)->price << std::endl;
+        std::cout << (*it)->src->name.data() << " " << (*it)->dest->name.data() << " " << i << " " << (*it)->price << std::endl;
     }
 }
 
@@ -549,7 +557,7 @@ int main(int argc, char **argv) {
     uint16_t minimal_price = 0;
     //std::cerr << "Loading " << std::endl;
     uint16_t days_total = read_input(nodes, start, minimal_price);
-
+return 0;
     //std::cerr << "Loading done" << std::endl;
 
     std::vector<route_t *> path;
